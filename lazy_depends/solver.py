@@ -110,7 +110,8 @@ async def _resolve_single_dep(
     if dep.response_param_name:
         values[dep.response_param_name] = response
     if dep.security_scopes_param_name:
-        values[dep.security_scopes_param_name] = SecurityScopes(scopes=dep.security_scopes)  # type: ignore[attr-defined]
+        _scopes = getattr(dep, "security_scopes", None) or getattr(dep, "security_scopes_value", [])
+        values[dep.security_scopes_param_name] = SecurityScopes(scopes=_scopes)
 
     # 5. Call the dependency (handle generators, async, sync)
     if errors:
@@ -333,9 +334,10 @@ async def solve_dependencies_concurrent(
     if dependant.response_param_name:
         values[dependant.response_param_name] = response
     if dependant.security_scopes_param_name:
-        values[dependant.security_scopes_param_name] = SecurityScopes(
-            scopes=dependant.security_scopes  # type: ignore[attr-defined]
+        _scopes = getattr(dependant, "security_scopes", None) or getattr(
+            dependant, "security_scopes_value", []
         )
+        values[dependant.security_scopes_param_name] = SecurityScopes(scopes=_scopes)
 
     return SolvedDependency(
         values=values,

@@ -55,12 +55,25 @@ def _build_graph(
                 dep.call, dep.call
             )
             if call is not dep.call:
-                use_dep = get_dependant(
-                    path=dep.path,  # type: ignore
-                    call=call,
-                    name=dep.name,
-                    security_scopes=dep.security_scopes,  # type: ignore[attr-defined]
+                # security_scopes was renamed to _security_scheme in FastAPI >=0.133
+                _sec_scopes = getattr(dep, "security_scopes", None) or getattr(
+                    dep, "_security_scheme", None
                 )
+                kwargs: dict[str, Any] = {
+                    "path": dep.path,
+                    "call": call,
+                    "name": dep.name,
+                }
+                if _sec_scopes is not None:
+                    # Try both kwarg names for version compat
+                    try:
+                        kwargs["security_scopes"] = _sec_scopes
+                        use_dep = get_dependant(**kwargs)  # type: ignore[arg-type]
+                    except TypeError:
+                        del kwargs["security_scopes"]
+                        use_dep = get_dependant(**kwargs)  # type: ignore[arg-type]
+                else:
+                    use_dep = get_dependant(**kwargs)  # type: ignore[arg-type]
 
         key = _node_key(dep)
 
