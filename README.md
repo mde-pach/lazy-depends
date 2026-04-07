@@ -29,7 +29,7 @@ Before:                               After:
   Total: ~20ms                          Total: ~5ms
 ```
 
-Deps that depend on each other still wait for their parents. Only independent branches run in parallel. Each dep starts the moment its own sub-deps finish, without waiting for unrelated deps at the same depth.
+Deps that depend on each other still wait for their parents. Only independent branches run in parallel, and each dep kicks off the moment its own parents are done — it doesn't hang around waiting for unrelated deps at the same depth.
 
 `lazy_depends.Depends` and `fastapi.Depends` are the same thing underneath. Mix them in the same endpoint, same sub-dep chain -- doesn't matter.
 
@@ -110,10 +110,12 @@ After 30 seconds, the next request runs the callable again.
 
 ## Which one do I use?
 
+Quick rule of thumb: start with `Depends`. Reach for `LazyDepends` when you've got a slow dep you don't immediately need, `StaticDepends` for stuff that never changes, and `CachedDepends` when it changes but not often.
+
 | I need... | Use | It resolves... |
 |---|---|---|
-| Normal dep, but faster | `Depends` | Before endpoint, in parallel |
-| Slow dep I don't need right away | `LazyDepends` | In background, await when ready |
+| Normal dep, but faster | `Depends` | Before the endpoint, in parallel |
+| Slow dep I don't need right away | `LazyDepends` | In the background, await when ready |
 | Something that never changes | `StaticDepends` | Once at startup |
 | Something that changes slowly | `CachedDepends` | Once per TTL window |
 
@@ -165,7 +167,7 @@ Call `StaticDepends.reset()` between tests to clear startup-resolved values.
 
 1. Change `from fastapi import Depends` to `from lazy_depends import Depends`
 2. Add `app.router.route_class = ConcurrentRoute` (or use `ConcurrentRouter`)
-3. That's it. Add `LazyDepends` / `StaticDepends` / `CachedDepends` later if you want.
+3. That's it. You can add `LazyDepends` / `StaticDepends` / `CachedDepends` later when you need them.
 
 ## Requirements
 
