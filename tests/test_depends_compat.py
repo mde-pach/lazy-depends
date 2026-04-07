@@ -913,6 +913,141 @@ class TestLazyInSubDeps:
             assert r.json() == {"error": "sub-dep failed"}
 
 
+# ═══════════════════════════════════════════════════════════
+# 15c. LazyDepends edge cases
+# ═══════════════════════════════════════════════════════════
+
+
+class TestLazyEdgeCases:
+    def test_same_dep_eager_and_lazy(self):
+        """Same dep used as Depends (eager) and LazyDepends (lazy) — cached once."""
+        app = _app()
+        calls = 0
+
+        async def get_user():
+            nonlocal calls
+            calls += 1
+            return {"name": "Alice", "call": calls}
+
+        async def sub_dep(lazy_user=LazyDepends(get_user)):
+            user = await lazy_user
+            return f"sub({user['name']})"
+
+        @app.get("/")
+        async def root(user=Depends(get_user), sub=Depends(sub_dep)):
+            return {"user": user, "sub": sub}
+
+        with TestClient(app) as c:
+            calls = 0
+            r = c.get("/")
+            d = r.json()
+            assert d["user"]["name"] == "Alice"
+            assert d["sub"] == "sub(Alice)"
+            assert calls == 1  # cached, not called twice
+
+    def test_nested_lazy(self):
+        """Lazy dep whose sub-dep is also lazy (chain of lazy)."""
+        app = _app()
+
+        async def deep():
+            await asyncio.sleep(0.1)
+            return "deep"
+
+        async def mid(lazy_deep=LazyDepends(deep)):
+            await asyncio.sleep(0.05)
+            return f"mid({await lazy_deep})"
+
+        @app.get("/")
+        async def root(lazy_mid=LazyDepends(mid)):
+            await asyncio.sleep(0.05)
+            return {"mid": await lazy_mid}
+
+        with TestClient(app) as c:
+            r = c.get("/")
+            assert r.json() == {"mid": "mid(deep)"}
+
+    def test_unawaited_lazy_no_crash(self):
+        """Unawaited lazy dep doesn't crash the request."""
+        app = _app()
+
+        async def unused():
+            return "never used"
+
+        @app.get("/")
+        async def root(lazy_unused=LazyDepends(unused), val=Depends(lambda: "ok")):
+            return {"val": val}
+
+        with TestClient(app) as c:
+            r = c.get("/")
+            assert r.json() == {"val": "ok"}
+
+    def test_lazy_use_cache_false(self):
+        """LazyDepends with use_cache=False produces independent instances."""
+        app = _app()
+        calls = 0
+
+        async def get_id():
+            nonlocal calls
+            calls += 1
+            return calls
+
+        @app.get("/")
+        async def root(
+            lazy_a=LazyDepends(get_id, use_cache=False),
+            lazy_b=LazyDepends(get_id, use_cache=False),
+        ):
+            a = await lazy_a
+            b = await lazy_b
+            return {"a": a, "b": b}
+
+        with TestClient(app) as c:
+            calls = 0
+            r = c.get("/")
+            d = r.json()
+            assert d["a"] != d["b"]
+
+    def test_sync_dep_lazy_in_sub_dep(self):
+        """Sync dep wrapped as lazy in a sub-dep (runs in threadpool)."""
+        app = _app()
+
+        def sync_dep():
+            return "sync-result"
+
+        async def parent(lazy_val=LazyDepends(sync_dep)):
+            val = await lazy_val
+            return {"val": val}
+
+        @app.get("/")
+        async def root(result=Depends(parent)):
+            return result
+
+        with TestClient(app) as c:
+            assert c.get("/").json() == {"val": "sync-result"}
+
+    def test_generator_lazy_in_sub_dep_cleanup(self):
+        """Generator dep as lazy in sub-dep — cleanup still runs."""
+        app = _app()
+        cleaned = []
+
+        async def gen_dep():
+            yield "gen-val"
+            cleaned.append(True)
+
+        async def parent(lazy_gen=LazyDepends(gen_dep)):
+            val = await lazy_gen
+            return {"val": val}
+
+        @app.get("/")
+        async def root(result=Depends(parent)):
+            return result
+
+        with TestClient(app) as c:
+            cleaned.clear()
+            r = c.get("/")
+            assert r.json() == {"val": "gen-val"}
+            assert cleaned == [True]
+
+
 class TestLazyOverrides:
     def test_override_lazy_dep(self):
         """dependency_overrides works on LazyDepends deps."""
