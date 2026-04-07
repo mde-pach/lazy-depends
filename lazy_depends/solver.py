@@ -228,6 +228,7 @@ async def solve_dependencies_concurrent(
         lazy_map = _cached_lazy_map
     else:
         from lazy_depends.depends import build_lazy_map
+
         lazy_map = build_lazy_map(graph)
 
     node_tasks: dict[Any, asyncio.Task] = {}
