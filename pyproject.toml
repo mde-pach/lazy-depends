@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lazy-depends"
+version = "0.1.0"
+description = "Concurrent async dependency injection for FastAPI — drop-in replacement for Depends()"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "Maxime de Pachtere", email = "mde-pach@users.noreply.github.com" },
+]
+dependencies = [
+    "fastapi>=0.100.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "aiosqlite",
+    "httpx",
+    "asgi-lifespan",
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["lazy_depends"]
