@@ -1,85 +1,70 @@
 # lazy-depends
 
-Drop-in dependency injection for FastAPI that resolves dependencies concurrently.
+FastAPI resolves your dependencies one by one. If you have 4 independent deps that each take 5ms, you're waiting 20ms. lazy-depends runs them in parallel.
 
 ```
 pip install lazy-depends
 ```
 
-## Setup
+## Get started
+
+Two lines:
 
 ```python
-from fastapi import FastAPI
-from lazy_depends import Depends, ConcurrentRoute
+from lazy_depends import Depends, ConcurrentRoute   # swap the import
 
 app = FastAPI()
-app.router.route_class = ConcurrentRoute
+app.router.route_class = ConcurrentRoute             # add this
 ```
 
-Change the import, set the route class. Everything else stays the same.
-
-## What it does
-
-FastAPI resolves dependencies one after another. If your route has 4 independent deps that each take 5ms, that's `5+5+5+5 = 20ms`. lazy-depends runs them in parallel: `max(5,5,5,5) = 5ms`.
+Your dep functions don't change. Your routes don't change. You just get concurrent resolution.
 
 ```
-Sequential (FastAPI):             Concurrent (lazy-depends):
+Before:                               After:
 
-  get_user ────── 5ms               get_user ─── 5ms  ─┐
-  get_tasks ───── 5ms               get_tasks ── 5ms   │ parallel
-  get_perms ───── 5ms               get_perms ── 5ms   │
-  get_activity ── 5ms               get_activity 5ms  ─┘
-  Total: ~20ms                      Total: ~5ms
+  get_user ────── 5ms                   get_user ─── 5ms  ─┐
+  get_tasks ───── 5ms                   get_tasks ── 5ms   │ parallel
+  get_perms ───── 5ms                   get_perms ── 5ms   │
+  get_activity ── 5ms                   get_activity 5ms  ─┘
+  Total: ~20ms                          Total: ~5ms
 ```
 
-Dependencies that depend on each other still run in the correct order. Independent branches run in parallel, and each dep starts the moment its own sub-deps are ready (ASAP scheduling) — it never waits for unrelated deps at the same depth.
+Deps that depend on each other still wait for their parents. Only independent branches run in parallel. Each dep starts the moment its own sub-deps finish, without waiting for unrelated deps at the same depth.
 
-## Four ways to declare dependencies
+`lazy_depends.Depends` and `fastapi.Depends` are the same thing underneath. Mix them in the same endpoint, same sub-dep chain -- doesn't matter.
 
-### `Depends` — concurrent, resolved before the endpoint
+## `LazyDepends` -- don't wait for what you don't need yet
 
-```python
-from lazy_depends import Depends
-
-@app.get("/")
-async def root(user=Depends(get_user), tasks=Depends(get_tasks)):
-    return {"user": user, "tasks": tasks}
-```
-
-Same as `fastapi.Depends`, but independent deps resolve in parallel. Fully compatible with `dependency_overrides`, generators, `use_cache`, `Header()`, `Query()`, `Security()`, `BackgroundTasks`, sync callables, and class-based deps.
-
-`lazy_depends.Depends` and `fastapi.Depends` are interchangeable — you can mix them freely in the same endpoint and sub-dependency chains.
-
-### `LazyDepends` — resolved in the background while the endpoint runs
+Sometimes a dep is slow and you don't need its result right away. `LazyDepends` starts the dep in the background and hands you a `Lazy[T]`. Await it when you're ready:
 
 ```python
 from lazy_depends import Depends, LazyDepends
 
 @app.get("/")
 async def root(
-    db=Depends(get_db),                  # ready before endpoint starts
-    lazy_user=LazyDepends(get_user),     # starts resolving immediately, in background
+    db=Depends(get_db),                  # resolved before endpoint starts
+    lazy_user=LazyDepends(get_user),     # starts immediately, in background
 ):
-    await db.execute("SELECT 1")
-    await asyncio.sleep(0.5)             # get_user keeps resolving in parallel
+    await db.execute("SELECT 1")         # db is ready
+    await asyncio.sleep(0.5)             # get_user keeps running during this
 
-    user = await lazy_user               # blocks only for remaining time
+    user = await lazy_user               # blocks only for whatever time is left
     return {"user": user}
 ```
 
-`await lazy_user` returns the real value — a plain `dict`, not a wrapper. `isinstance`, `json.dumps`, Pydantic serialization all work normally.
+`await lazy_user` gives you the real value -- a plain dict, not a proxy. Pydantic, `isinstance`, `json.dumps` all work fine.
 
-Prefix lazy params with `lazy_` to make it clear which deps need `await`.
+Convention: prefix lazy params with `lazy_` so it's obvious which ones need an `await`.
 
-`LazyDepends` works at any level — endpoints and sub-dependencies:
+This works inside sub-dependencies too, not just at the endpoint level:
 
 ```python
 async def get_dashboard(
     db=Depends(get_db),
-    lazy_user=LazyDepends(get_user),     # lazy inside a sub-dep
+    lazy_user=LazyDepends(get_user),
 ):
-    result = await db.execute("SELECT ...")  # user resolves in background
-    user = await lazy_user                   # ready by now
+    result = await db.execute("SELECT ...")   # user resolves in background
+    user = await lazy_user                    # done by now
     return {"data": result, "user": user}
 
 @app.get("/")
@@ -87,9 +72,9 @@ async def root(dashboard=Depends(get_dashboard)):
     return dashboard
 ```
 
-All tasks start immediately via ASAP scheduling. When a sub-dep declares `LazyDepends`, the child task is already running — the sub-dep receives a `Lazy[T]` wrapper and can `await` it after doing other work.
+## `StaticDepends` -- resolve once at startup, inject forever
 
-### `StaticDepends` — resolved once at startup
+For things that never change: config, ML models, connection pools. Resolved during the app lifespan, injected as a plain value with zero per-request cost.
 
 ```python
 from lazy_depends import StaticDepends
@@ -105,9 +90,13 @@ async def root(config=StaticDepends(load_config)):
     return config["max_tasks"]
 ```
 
-All static deps resolve concurrently during startup. At request time, it's a dict lookup — zero overhead. To compose with your own lifespan, call `await StaticDepends.resolve()` during startup instead.
+Multiple static deps resolve concurrently during startup. At request time it's just a dict lookup.
 
-### `CachedDepends` — resolved once per TTL window
+If you have your own lifespan, call `await StaticDepends.resolve()` in it instead of using `StaticDepends.lifespan`.
+
+## `CachedDepends` -- like static, but expires
+
+For data that changes slowly: feature flags, permission sets, rate limit config. Runs the callable once, then serves the cached result for `ttl` seconds.
 
 ```python
 from lazy_depends import CachedDepends
@@ -117,20 +106,20 @@ async def root(flags=CachedDepends(get_feature_flags, ttl=30)):
     ...
 ```
 
-The callable runs once, then the result is reused for `ttl` seconds. After expiry, the next request re-invokes it.
+After 30 seconds, the next request runs the callable again.
 
-### Choosing the right one
+## Which one do I use?
 
-| Situation | Use | When it resolves |
+| I need... | Use | It resolves... |
 |---|---|---|
-| Standard dependency | `Depends` | Before endpoint, concurrently |
-| Slow dep you don't need right away | `LazyDepends` | Background, `await` when needed |
-| Config, ML models, connection pools | `StaticDepends` | Once at startup |
-| Feature flags, permissions | `CachedDepends` | Once per TTL window |
+| Normal dep, but faster | `Depends` | Before endpoint, in parallel |
+| Slow dep I don't need right away | `LazyDepends` | In background, await when ready |
+| Something that never changes | `StaticDepends` | Once at startup |
+| Something that changes slowly | `CachedDepends` | Once per TTL window |
 
 ## `ConcurrentRouter`
 
-`APIRouter` subclass with concurrent resolution built in. Works with `include_router`:
+If you use `include_router`, this is cleaner than setting `route_class` everywhere:
 
 ```python
 from lazy_depends import ConcurrentRouter
@@ -146,11 +135,7 @@ app.include_router(router)
 
 ## Tracing
 
-See how your deps resolve:
-
-```bash
-LAZY_DEPENDS_TRACE=1 uvicorn myapp:app
-```
+Want to see what's happening? Set `LAZY_DEPENDS_TRACE=1`:
 
 ```
 GET /dashboard deps resolved in 14.2ms
@@ -161,11 +146,11 @@ GET /dashboard deps resolved in 14.2ms
   └─ get_perms ··················    5.0ms ─┘  (after: get_user, get_db)
 ```
 
-Also available via `logging.getLogger("lazy_depends").setLevel(logging.DEBUG)`.
+The `─┐`/`─┘` markers mean those deps ran in parallel. You can also enable it via `logging.getLogger("lazy_depends").setLevel(logging.DEBUG)`.
 
 ## Testing
 
-Works with `dependency_overrides` exactly like FastAPI:
+`dependency_overrides` works the same as with plain FastAPI:
 
 ```python
 app.dependency_overrides[get_db] = lambda: mock_db
@@ -174,18 +159,17 @@ with TestClient(app) as client:
     response = client.get("/")
 ```
 
-For `StaticDepends`, call `StaticDepends.reset()` between tests.
+Call `StaticDepends.reset()` between tests to clear startup-resolved values.
 
-## Migration from FastAPI
+## Migrating
 
-1. `from lazy_depends import Depends` instead of `from fastapi import Depends`
-2. `app.router.route_class = ConcurrentRoute` (or use `ConcurrentRouter`)
-3. Done. Add `LazyDepends` / `StaticDepends` / `CachedDepends` where it helps.
+1. Change `from fastapi import Depends` to `from lazy_depends import Depends`
+2. Add `app.router.route_class = ConcurrentRoute` (or use `ConcurrentRouter`)
+3. That's it. Add `LazyDepends` / `StaticDepends` / `CachedDepends` later if you want.
 
 ## Requirements
 
-- Python >= 3.11
-- FastAPI >= 0.100.0
+Python >= 3.11, FastAPI >= 0.100.0
 
 ## License
 
