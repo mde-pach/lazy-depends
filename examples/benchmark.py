@@ -137,7 +137,6 @@ async def run_suite(latency_ms: int, label: str, runs: int = 5):
     apps = [
         ("example_traditional", "Traditional"),
         ("example_concurrent",  "Concurrent"),
-        ("example_lazy",        "Lazy"),
     ]
 
     all_results = [[] for _ in apps]
@@ -160,15 +159,14 @@ async def run_suite(latency_ms: int, label: str, runs: int = 5):
 
 async def main():
     print("=" * 80)
-    print("  BENCHMARK: Traditional vs Concurrent (drop-in) vs Lazy (container)")
+    print("  BENCHMARK: Traditional vs Concurrent (drop-in)")
     print("=" * 80)
     print()
     print("  Same domain.py, same routes, same business logic.")
     print("  All queries are real aiosqlite calls.")
     print()
     print("  Traditional:  standard FastAPI Depends (sequential)")
-    print("  Concurrent:   lazy_deps.Depends drop-in (concurrent, same code!)")
-    print("  Lazy:         Container-based (concurrent, different paradigm)")
+    print("  Concurrent:   lazy_depends.Depends drop-in (concurrent, same code!)")
 
     await run_suite(0, "LOCAL SQLite (no network latency)")
     await run_suite(5, "NETWORK-LIKE (5ms latency per query)")
@@ -179,8 +177,7 @@ async def main():
     print("─" * 80)
     print()
     print("  The Concurrent version uses the EXACT same dep functions as Traditional.")
-    print("  Only two changes: import Depends from lazy_deps + set ConcurrentRoute.")
-    print("  Yet it gets the same speedup as the full Container-based Lazy approach.")
+    print("  Only two changes: import Depends from lazy_depends + set ConcurrentRoute.")
     print()
 
 

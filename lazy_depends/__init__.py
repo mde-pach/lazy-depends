@@ -1,35 +1,39 @@
 """
 lazy_depends — Concurrent async dependency injection for FastAPI.
 
-Two APIs:
-  1. Container-based: explicit registration, middleware-driven concurrency
-  2. Drop-in Depends: same FastAPI Depends() interface, automatic concurrency
+Drop-in ``Depends`` with concurrent resolution, plus ``LazyDepends``
+for dependencies that resolve in the background while the endpoint runs.
 
-Quick start (drop-in):
-    from lazy_depends import Depends, ConcurrentRoute
+Quick start:
+    from lazy_depends import Depends, LazyDepends, ConcurrentRoute
 
     app = FastAPI()
     app.router.route_class = ConcurrentRoute
 
-    # Everything else is standard FastAPI — deps resolve concurrently.
+    @app.get("/")
+    async def root(
+        db=Depends(get_db),              # eager — resolved before endpoint
+        user=LazyDepends(get_user),      # lazy — resolves in background
+    ):
+        await user                       # resolve when needed
+        ...
 """
 
-from lazy_depends.container import (
-    AsyncLazyDep,
-    Container,
-    LazyDepNotReady,
-    RequestScope,
-    install,
-)
+from lazy_depends.concurrent import Depends
+from lazy_depends.lazy import Lazy, LazyDepends, StaticDepends, CachedDepends
 
-from lazy_depends.concurrent import Depends, ConcurrentRoute
+try:
+    from lazy_depends.concurrent import ConcurrentRoute, ConcurrentRouter
+except ImportError:
+    ConcurrentRoute = None  # type: ignore[assignment,misc]
+    ConcurrentRouter = None  # type: ignore[assignment,misc]
 
 __all__ = [
-    "AsyncLazyDep",
-    "Container",
+    "CachedDepends",
     "ConcurrentRoute",
+    "ConcurrentRouter",
     "Depends",
-    "LazyDepNotReady",
-    "RequestScope",
-    "install",
+    "Lazy",
+    "LazyDepends",
+    "StaticDepends",
 ]
