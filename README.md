@@ -169,7 +169,7 @@ Call `StaticDepends.reset()` between tests to clear startup-resolved values.
 
 ## Requirements
 
-Python >= 3.11, FastAPI >= 0.100.0
+Python >= 3.11, FastAPI >= 0.114.0
 
 ## License
 
