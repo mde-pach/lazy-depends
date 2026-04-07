@@ -826,6 +826,93 @@ class TestLazyGenerators:
 # ═══════════════════════════════════════════════════════════
 
 
+# ═══════════════════════════════════════════════════════════
+# 15b. LazyDepends inside sub-dependencies
+# ═══════════════════════════════════════════════════════════
+
+
+class TestLazyInSubDeps:
+    def test_lazy_inside_sub_dep(self):
+        """LazyDepends works inside a sub-dependency, not just the endpoint."""
+        app = _app()
+
+        async def get_db():
+            return "db"
+
+        async def get_user():
+            await asyncio.sleep(0.2)
+            return {"name": "Alice"}
+
+        async def get_dashboard(db=Depends(get_db), lazy_user=LazyDepends(get_user)):
+            await asyncio.sleep(0.15)  # do work while get_user resolves
+            user = await lazy_user
+            return {"db": db, "user": user}
+
+        @app.get("/")
+        async def root(dashboard=Depends(get_dashboard)):
+            return dashboard
+
+        with TestClient(app) as c:
+            t0 = time.monotonic()
+            r = c.get("/")
+            dt = time.monotonic() - t0
+            assert r.json() == {"db": "db", "user": {"name": "Alice"}}
+            # Without lazy: 0.2 (user) + 0.15 (work) = 0.35s
+            # With lazy: max(0.2, 0.15) = 0.2s
+            assert dt < 0.3, f"Took {dt:.3f}s — lazy dep didn't overlap in sub-dep"
+
+    def test_lazy_in_sub_dep_with_eager_at_endpoint(self):
+        """LazyDepends in sub-dep + regular Depends at endpoint level."""
+        app = _app()
+
+        async def slow():
+            await asyncio.sleep(0.15)
+            return "slow"
+
+        async def fast():
+            return "fast"
+
+        async def composite(f=Depends(fast), lazy_s=LazyDepends(slow)):
+            s = await lazy_s
+            return {"fast": f, "slow": s}
+
+        async def other():
+            return "other"
+
+        @app.get("/")
+        async def root(comp=Depends(composite), o=Depends(other)):
+            return {"comp": comp, "other": o}
+
+        with TestClient(app) as c:
+            r = c.get("/")
+            assert r.json() == {
+                "comp": {"fast": "fast", "slow": "slow"},
+                "other": "other",
+            }
+
+    def test_lazy_in_sub_dep_error_propagates(self):
+        """Error in a lazy sub-dep propagates when awaited."""
+        app = _app()
+
+        async def failing():
+            raise ValueError("sub-dep failed")
+
+        async def parent(lazy_val=LazyDepends(failing)):
+            try:
+                val = await lazy_val
+                return {"val": val}
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @app.get("/")
+        async def root(result=Depends(parent)):
+            return result
+
+        with TestClient(app) as c:
+            r = c.get("/")
+            assert r.json() == {"error": "sub-dep failed"}
+
+
 class TestLazyOverrides:
     def test_override_lazy_dep(self):
         """dependency_overrides works on LazyDepends deps."""

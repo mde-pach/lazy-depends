@@ -151,6 +151,7 @@ async def solve_dependencies_concurrent(
     _cached_graph: dict | None = None,
     _cached_key_map: dict | None = None,
     _cached_levels: list[list] | None = None,
+    _cached_lazy_map: dict[Any, set[str]] | None = None,
     _trace: Any | None = None,
 ) -> SolvedDependency:
     """
@@ -220,6 +221,14 @@ async def solve_dependencies_concurrent(
     # Tasks start as soon as their sub-deps finish — no waiting
     # for unrelated deps at the same "level".
     # Lazy deps are wrapped in Lazy[T]; eager deps are awaited.
+    # LazyDepends params inside sub-deps also get Lazy wrappers.
+
+    # Build lazy map if not cached (e.g. when dependency_overrides active)
+    if _cached_lazy_map is not None:
+        lazy_map = _cached_lazy_map
+    else:
+        from lazy_depends.depends import build_lazy_map
+        lazy_map = build_lazy_map(graph)
 
     node_tasks: dict[Any, asyncio.Task] = {}
 
@@ -230,8 +239,14 @@ async def solve_dependencies_concurrent(
                 nonlocal background_tasks
                 dep, call, child_keys = graph[_key]
                 local_cache: dict[Any, Any] = {}
-                for child_key in child_keys.values():
-                    local_cache[child_key] = await node_tasks[child_key]
+                node_lazy_params = lazy_map.get(_key)
+                for param_name, child_key in child_keys.items():
+                    if node_lazy_params and param_name in node_lazy_params:
+                        # This child is LazyDepends in the parent's signature —
+                        # pass the running task as Lazy[T] instead of awaiting
+                        local_cache[child_key] = Lazy(node_tasks[child_key], name=param_name)
+                    else:
+                        local_cache[child_key] = await node_tasks[child_key]
                 if _tracing:
                     from lazy_depends.tracing import DepSpan
 

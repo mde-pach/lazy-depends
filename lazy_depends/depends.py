@@ -74,23 +74,43 @@ if _HAS_FASTAPI:
         pass
 
 
-def detect_lazy_dep_names(endpoint: Callable[..., Any]) -> set[str] | None:
+def detect_lazy_dep_names(fn: Callable[..., Any]) -> set[str] | None:
     """
-    Inspect an endpoint function's signature and return the set of
+    Inspect a function's signature and return the set of
     parameter names whose default is a ``LazyDepends`` marker.
 
-    Returns ``None`` if no lazy deps are found (avoids allocating
-    an empty set on every request for non-lazy routes).
+    Returns ``None`` if no lazy deps are found.
     """
     if not _HAS_FASTAPI:
         return None
     result: set[str] | None = None
-    for name, param in inspect.signature(endpoint).parameters.items():
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        return None
+    for name, param in sig.parameters.items():
         if isinstance(param.default, _LazyDependsMarker):
             if result is None:
                 result = set()
             result.add(name)
     return result
+
+
+def build_lazy_map(graph: dict) -> dict[Any, set[str]]:
+    """
+    Scan all nodes in the dependency graph and build a map of
+    ``{node_key: set(param_names)}`` for every callable that has
+    ``LazyDepends`` params.
+
+    Used by the solver to inject ``Lazy(task)`` instead of awaiting
+    for those children.
+    """
+    lazy_map: dict[Any, set[str]] = {}
+    for key, (dep, call, child_keys) in graph.items():
+        lazy_names = detect_lazy_dep_names(call)
+        if lazy_names:
+            lazy_map[key] = lazy_names
+    return lazy_map
 
 
 # ──────────────────────────────────────────────────────────

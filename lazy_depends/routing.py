@@ -114,6 +114,8 @@ if _HAS_FASTAPI:
             )
 
         # Detect LazyDepends markers at route registration time
+        from lazy_depends.depends import build_lazy_map
+
         lazy_dep_names = (
             detect_lazy_dep_names(dependant.call)
             if dependant.call  # type: ignore[truthy-function]
@@ -124,6 +126,9 @@ if _HAS_FASTAPI:
         # Reused on every request unless dependency_overrides is active.
         _cached_graph, _cached_key_map = _build_graph(dependant, None)
         _cached_levels = _topo_levels(_cached_graph) if _cached_graph else []
+
+        # Pre-compute lazy param map for ALL nodes in the graph
+        _cached_lazy_map = build_lazy_map(_cached_graph) if _cached_graph else {}
 
         async def app(request: _Request) -> _Response:
             nonlocal endpoint_ctx
@@ -225,6 +230,7 @@ if _HAS_FASTAPI:
                     _cached_graph=_cached_graph if _cached_graph else None,
                     _cached_key_map=_cached_key_map if _cached_graph else None,
                     _cached_levels=_cached_levels if _cached_graph else None,
+                    _cached_lazy_map=_cached_lazy_map if _cached_graph else None,
                     _trace=_trace_obj,
                 )
 
