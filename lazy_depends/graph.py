@@ -45,7 +45,7 @@ def _build_graph(
     def walk(dep: Dependant) -> Any:
         """Process a Dependant node, returns its node_key."""
         dep.call = cast(Callable[..., Any], dep.call)
-        dep.cache_key = cast(tuple[Callable[..., Any], tuple[str]], dep.cache_key)
+        dep.cache_key = cast(tuple[Callable[..., Any], tuple[str]], dep.cache_key)  # type: ignore[assignment]
 
         # Apply dependency overrides (same logic as FastAPI)
         call = dep.call
@@ -59,7 +59,7 @@ def _build_graph(
                     path=dep.path,  # type: ignore
                     call=call,
                     name=dep.name,
-                    security_scopes=dep.security_scopes,
+                    security_scopes=dep.security_scopes,  # type: ignore[attr-defined]
                 )
 
         key = _node_key(dep)

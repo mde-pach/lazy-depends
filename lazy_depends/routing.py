@@ -42,12 +42,14 @@ try:
 
     # Version-adaptive imports
     try:
-        from fastapi._compat import _normalize_errors
+        from fastapi._compat import _normalize_errors  # type: ignore[attr-defined]
     except ImportError:
         _normalize_errors = None  # type: ignore[assignment]
 
     try:
-        from fastapi.dependencies.utils import is_coroutine_callable  # noqa: F401
+        from fastapi.dependencies.utils import (
+            is_coroutine_callable,  # type: ignore[attr-defined]  # noqa: F401
+        )
 
         _NEW_FASTAPI = False
     except ImportError:

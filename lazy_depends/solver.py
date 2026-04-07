@@ -31,7 +31,7 @@ from starlette.websockets import WebSocket
 
 # Version-adaptive imports: FastAPI >=0.133 moved/removed several helpers
 try:
-    from fastapi.dependencies.utils import (
+    from fastapi.dependencies.utils import (  # type: ignore[attr-defined]
         is_async_gen_callable,
         is_coroutine_callable,
         is_gen_callable,
@@ -110,7 +110,7 @@ async def _resolve_single_dep(
     if dep.response_param_name:
         values[dep.response_param_name] = response
     if dep.security_scopes_param_name:
-        values[dep.security_scopes_param_name] = SecurityScopes(scopes=dep.security_scopes)
+        values[dep.security_scopes_param_name] = SecurityScopes(scopes=dep.security_scopes)  # type: ignore[attr-defined]
 
     # 5. Call the dependency (handle generators, async, sync)
     if errors:
@@ -334,7 +334,7 @@ async def solve_dependencies_concurrent(
         values[dependant.response_param_name] = response
     if dependant.security_scopes_param_name:
         values[dependant.security_scopes_param_name] = SecurityScopes(
-            scopes=dependant.security_scopes
+            scopes=dependant.security_scopes  # type: ignore[attr-defined]
         )
 
     return SolvedDependency(
