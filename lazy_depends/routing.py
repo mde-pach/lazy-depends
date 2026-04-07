@@ -47,9 +47,7 @@ try:
         _normalize_errors = None  # type: ignore[assignment]
 
     try:
-        from fastapi.dependencies.utils import (
-            is_coroutine_callable,  # type: ignore[attr-defined]  # noqa: F401
-        )
+        from fastapi.dependencies.utils import is_coroutine_callable  # type: ignore[attr-defined]  # noqa: F401, I001
 
         _NEW_FASTAPI = False
     except ImportError:
