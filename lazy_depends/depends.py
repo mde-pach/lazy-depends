@@ -106,7 +106,7 @@ def build_lazy_map(graph: dict) -> dict[Any, set[str]]:
     for those children.
     """
     lazy_map: dict[Any, set[str]] = {}
-    for key, (dep, call, child_keys) in graph.items():
+    for key, (_dep, call, _child_keys) in graph.items():
         lazy_names = detect_lazy_dep_names(call)
         if lazy_names:
             lazy_map[key] = lazy_names
