@@ -13,5 +13,4 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-integration_tests/fastapi-full-stack/template/.venv/
-integration_tests/fastapi-full-stack/template/frontend/node_modules/
+integration_tests/

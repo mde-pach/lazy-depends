@@ -36,6 +36,9 @@ dev = [
     "asgi-lifespan",
     "pytest",
     "pytest-asyncio",
+    "ruff",
+    "mypy",
+    "pre-commit",
 ]
 
 [project.urls]
@@ -45,3 +48,17 @@ Issues = "https://github.com/mde-pach/lazy-depends/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["lazy_depends"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

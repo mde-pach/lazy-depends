@@ -19,11 +19,13 @@ Quick start:
         ...
 """
 
-from lazy_depends.concurrent import Depends
-from lazy_depends.lazy import Lazy, LazyDepends, StaticDepends, CachedDepends
+from lazy_depends.caching import CachedDepends
+from lazy_depends.depends import Depends, LazyDepends
+from lazy_depends.lazy import Lazy
+from lazy_depends.static import StaticDepends
 
 try:
-    from lazy_depends.concurrent import ConcurrentRoute, ConcurrentRouter
+    from lazy_depends.routing import ConcurrentRoute, ConcurrentRouter
 except ImportError:
     ConcurrentRoute = None  # type: ignore[assignment,misc]
     ConcurrentRouter = None  # type: ignore[assignment,misc]
