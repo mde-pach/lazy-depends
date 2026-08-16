@@ -1,0 +1,35 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  pytest:
+    name: Python ${{ matrix.python-version }} / ${{ matrix.packages || 'locked' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # every python version lazy-depends supports, against the locked
+        # dependencies: this is what a new install gets, so lazy-depends
+        # breaking on one of them has to turn the CI red
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+        packages: ['']
+        include:
+          # the floor lazy-depends declares: the oldest supported FastAPI
+          - python-version: '3.11'
+            packages: 'fastapi==0.114.0'
+          # and the versions in between that people actually run
+          - python-version: '3.12'
+            packages: 'fastapi~=0.115.0'
+          - python-version: '3.13'
+            packages: 'fastapi~=0.128.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run the test suite
+        uses: ./.github/actions/pytest
+        with:
+          python-version: ${{ matrix.python-version }}
+          packages: ${{ matrix.packages }}

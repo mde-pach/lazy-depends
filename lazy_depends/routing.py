@@ -20,10 +20,6 @@ try:
     from fastapi._compat import ModelField, Undefined
     from fastapi.datastructures import Default, DefaultPlaceholder
     from fastapi.dependencies.models import Dependant
-    from fastapi.dependencies.utils import (  # noqa: F401
-        _should_embed_body_fields,
-        get_body_field,
-    )
     from fastapi.exceptions import (
         RequestValidationError,
     )

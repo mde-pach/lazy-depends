@@ -2,42 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
+  lint:
+    permissions:
+      id-token: write
+    uses: ./.github/workflows/lint.yml
+
   test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
-        fastapi-version: ["0.114.0", "0.115.0", ""]  # "" = latest
-        exclude:
-          - python-version: "3.14"
-            fastapi-version: "0.114.0"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
-      - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
-      - name: Pin FastAPI version
-        if: matrix.fastapi-version != ''
-        run: pip install "fastapi==${{ matrix.fastapi-version }}"
-      - name: Show versions
-        run: |
-          python --version
-          pip show fastapi | grep Version
-      - name: Ruff check
-        run: ruff check lazy_depends/
-      - name: Ruff format check
-        run: ruff format --check lazy_depends/
-      - name: Mypy
-        run: mypy lazy_depends/
-      - name: Tests
-        run: pytest tests/ -v
+    uses: ./.github/workflows/test.yml
