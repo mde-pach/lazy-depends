@@ -7,21 +7,26 @@ Run: pytest tests/test_depends_compat.py -v
 
 import asyncio
 import time
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 
-import pytest
-from fastapi import FastAPI, Header, Query, Cookie, HTTPException, Request, Response
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Cookie, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import Depends as FastAPIDepends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.testclient import TestClient
 from starlette.background import BackgroundTasks
 
-from fastapi import Depends as FastAPIDepends
-from lazy_depends import ConcurrentRoute, Depends, LazyDepends
+from lazy_depends import (
+    CachedDepends,
+    ConcurrentRoute,
+    ConcurrentRouter,
+    Depends,
+    LazyDepends,
+)
 
-
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Helpers
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 def _app() -> FastAPI:
     app = FastAPI()
@@ -29,9 +34,9 @@ def _app() -> FastAPI:
     return app
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 1. Basic concurrent resolution
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestBasicConcurrent:
@@ -103,9 +108,9 @@ class TestBasicConcurrent:
             assert c.get("/").json() == {"ok": True}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 2. Dependency chains
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestDependencyChains:
@@ -184,9 +189,9 @@ class TestDependencyChains:
             assert call_count == 1
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 3. use_cache
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestUseCache:
@@ -234,9 +239,9 @@ class TestUseCache:
             assert data["a"] != data["b"]
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 4. Generator (yield) deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestGeneratorDeps:
@@ -300,9 +305,9 @@ class TestGeneratorDeps:
             # The important thing is it doesn't crash.
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 5. Sync deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestSyncDeps:
@@ -338,9 +343,9 @@ class TestSyncDeps:
             assert c.get("/").json() == {"s": "sync", "a": "async"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 6. dependency_overrides
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestDependencyOverrides:
@@ -386,9 +391,9 @@ class TestDependencyOverrides:
         app.dependency_overrides.clear()
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 7. Special params: Request, Response, BackgroundTasks
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestSpecialParams:
@@ -443,9 +448,9 @@ class TestSpecialParams:
             assert tasks_ran == [True]
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 8. Header / Query / Cookie / Path params in deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestParamInjection:
@@ -506,9 +511,9 @@ class TestParamInjection:
             assert c.get("/").json() == {"session": "abc123"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 9. Body params
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestBodyParams:
@@ -532,9 +537,9 @@ class TestBodyParams:
             assert r.json() == {"name": "test", "val": "dep-val"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 10. HTTPException from deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestDepErrors:
@@ -591,9 +596,9 @@ class TestDepErrors:
             assert r.status_code == 422
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 11. Security
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestSecurity:
@@ -617,9 +622,9 @@ class TestSecurity:
             assert r.status_code in (401, 403)  # FastAPI version-dependent
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 12. LazyDepends — basic
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyDependsBasic:
@@ -679,9 +684,9 @@ class TestLazyDependsBasic:
             assert r.status_code in (200, 503)
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 13. LazyDepends — timing
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyDependsTiming:
@@ -716,9 +721,9 @@ class TestLazyDependsTiming:
             assert dt < 0.7, f"Took {dt:.2f}s — lazy dep didn't run in background"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 14. Mixed Depends + LazyDepends
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestMixedDeps:
@@ -734,8 +739,8 @@ class TestMixedDeps:
 
         @app.get("/")
         async def root(e=Depends(eager), lazy_l=LazyDepends(lazy)):
-            l = await lazy_l
-            return {"e": e, "l": l}
+            lazy_value = await lazy_l
+            return {"e": e, "l": lazy_value}
 
         with TestClient(app) as c:
             assert c.get("/").json() == {"e": "eager", "l": "lazy"}
@@ -758,8 +763,8 @@ class TestMixedDeps:
 
         @app.get("/")
         async def root(e=Depends(eager_dep), lazy_l=LazyDepends(lazy_dep)):
-            l = await lazy_l
-            return {"e": e, "l": l}
+            lazy_value = await lazy_l
+            return {"e": e, "l": lazy_value}
 
         with TestClient(app) as c:
             calls = 0
@@ -796,9 +801,9 @@ class TestMixedDeps:
             assert dt < 0.35, f"Took {dt:.2f}s — lazy deps didn't run in parallel"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 15. LazyDepends with generator deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyGenerators:
@@ -823,14 +828,14 @@ class TestLazyGenerators:
             assert cleaned_up == [True]
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 16. LazyDepends with dependency_overrides
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 15b. LazyDepends inside sub-dependencies
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyInSubDeps:
@@ -915,9 +920,9 @@ class TestLazyInSubDeps:
             assert r.json() == {"error": "sub-dep failed"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 15c. LazyDepends edge cases
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyEdgeCases:
@@ -1072,9 +1077,9 @@ class TestLazyOverrides:
         app.dependency_overrides.clear()
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 17. Lazy[T] object behavior
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyObject:
@@ -1111,7 +1116,11 @@ class TestLazyObject:
         from lazy_depends.lazy import Lazy
 
         async def check():
-            task = asyncio.create_task(asyncio.coroutine(lambda: None)() if False else asyncio.sleep(0, result={"key": "val"}))
+            task = asyncio.create_task(
+                asyncio.coroutine(lambda: None)()
+                if False
+                else asyncio.sleep(0, result={"key": "val"})
+            )
             lazy = Lazy(task)
             result = await lazy
             assert isinstance(result, dict)
@@ -1122,9 +1131,9 @@ class TestLazyObject:
         asyncio.run(check())
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 18. Response types
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestResponseTypes:
@@ -1163,9 +1172,9 @@ class TestResponseTypes:
             assert r.json() == {"val": "created"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 19. Class-based deps (callable instances)
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestClassBasedDeps:
@@ -1214,9 +1223,9 @@ class TestClassBasedDeps:
             assert r.status_code == 403
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 20. Cross-route: LazyDepends in one route, Depends in another
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestCrossRoute:
@@ -1265,9 +1274,9 @@ class TestCrossRoute:
             assert c.get("/b").json() == {"val": "b"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 21. WebSocket deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestWebSocket:
@@ -1287,21 +1296,21 @@ class TestWebSocket:
             await websocket.send_json({"val": val})
             await websocket.close()
 
-        with TestClient(app) as c:
-            with c.websocket_connect("/ws") as ws:
-                data = ws.receive_json()
-                assert data == {"val": "ws-dep"}
+        with TestClient(app) as c, c.websocket_connect("/ws") as ws:
+            data = ws.receive_json()
+            assert data == {"val": "ws-dep"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 22. StaticDepends — resolve once, cache forever
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestStaticDepends:
     def setup_method(self):
         """Reset static registry between tests."""
         from lazy_depends import StaticDepends
+
         StaticDepends.reset()
 
     def test_static_dep_resolves_at_startup(self):
@@ -1443,6 +1452,7 @@ class TestStaticDepends:
             return {"a": a, "b": b}
 
         import time
+
         t0 = time.monotonic()
         with TestClient(app) as c:
             startup_dt = time.monotonic() - t0
@@ -1454,6 +1464,7 @@ class TestStaticDepends:
     def test_static_with_custom_lifespan(self):
         """StaticDepends.resolve() composes with custom lifespan."""
         from contextlib import asynccontextmanager
+
         from lazy_depends import StaticDepends
 
         custom_ran = []
@@ -1480,9 +1491,9 @@ class TestStaticDepends:
         assert custom_ran == ["startup", "shutdown"]
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 23. Eager leaf resolution
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestEagerLeafResolution:
@@ -1524,9 +1535,9 @@ class TestEagerLeafResolution:
             assert c.get("/").json() == {"result": "child(sync)"}
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 24. Single-level fast path
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestSingleLevelFastPath:
@@ -1559,9 +1570,9 @@ class TestSingleLevelFastPath:
             assert dt < 0.4, f"Took {dt:.2f}s — deps didn't run in parallel"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 25. Tracing
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestTracing:
@@ -1580,10 +1591,12 @@ class TestTracing:
             return {"a": a, "b": b}
 
         import os
+
         old = os.environ.get("LAZY_DEPENDS_TRACE", "")
         os.environ["LAZY_DEPENDS_TRACE"] = "1"
         # Reload to pick up env var
         import lazy_depends.tracing
+
         lazy_depends.tracing._ENV_TRACE = True
         try:
             with TestClient(app) as c:
@@ -1597,18 +1610,18 @@ class TestTracing:
             lazy_depends.tracing._ENV_TRACE = False
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 26. Cross-compatibility: fastapi.Depends + lazy_depends.*
 #
 # Test matrix:
 #   Route class     │ Endpoint deps                        │ Sub-deps
-#   ────────────────┼──────────────────────────────────────┼──────────────
+#   ────────────────┼────────────────────────────────────┼──────────────
 #   Default (no CR) │ FastAPIDepends only                  │ FastAPIDepends
 #   ConcurrentRoute │ lazy_depends.Depends only            │ lazy_depends.Depends
 #   ConcurrentRoute │ mixed FastAPI + lazy_depends         │ mixed
 #   ConcurrentRoute │ FastAPIDepends + LazyDepends         │ FastAPIDepends
 #   ConcurrentRoute │ lazy_depends.Depends + StaticDepends │ n/a
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestCrossCompatibility:
@@ -1651,7 +1664,7 @@ class TestCrossCompatibility:
         with TestClient(app) as c:
             assert c.get("/").json() == {"val": "val"}
 
-    # ── ConcurrentRoute with fastapi.Depends ───────────────
+    # ── ConcurrentRoute with fastapi.Depends ───────────────────
 
     def test_fastapi_depends_on_concurrent_route(self):
         """fastapi.Depends works on ConcurrentRoute (resolved concurrently)."""
@@ -1676,7 +1689,7 @@ class TestCrossCompatibility:
             assert r.json() == {"a": "a", "b": "b"}
             assert dt < 0.35, f"Took {dt:.2f}s — fastapi.Depends not concurrent on ConcurrentRoute"
 
-    # ── Mixed fastapi.Depends + lazy_depends.Depends ───────
+    # ── Mixed fastapi.Depends + lazy_depends.Depends ───────────
 
     def test_mixed_fastapi_and_lazy_depends_same_endpoint(self):
         """Both fastapi.Depends and lazy_depends.Depends in the same endpoint."""
@@ -1771,11 +1784,12 @@ class TestCrossCompatibility:
         with TestClient(app) as c:
             assert c.get("/").json() == {"user": "user(db)"}
 
-    # ── Mixed with StaticDepends ───────────────────────────
+    # ── Mixed with StaticDepends ──────────────────────────
 
     def test_all_three_in_one_endpoint(self):
         """fastapi.Depends + lazy_depends.Depends + LazyDepends + StaticDepends."""
         from lazy_depends import StaticDepends
+
         StaticDepends.reset()
 
         async def static_dep():
@@ -1797,11 +1811,11 @@ class TestCrossCompatibility:
         async def root(
             s=StaticDepends(static_dep),
             f=FastAPIDepends(fastapi_dep),
-            l=Depends(lazy_dep),
+            ld=Depends(lazy_dep),
             lazy_d=LazyDepends(deferred_dep),
         ):
             d = await lazy_d
-            return {"s": s, "f": f, "l": l, "d": d}
+            return {"s": s, "f": f, "l": ld, "d": d}
 
         with TestClient(app) as c:
             r = c.get("/")
@@ -1812,7 +1826,7 @@ class TestCrossCompatibility:
                 "d": "deferred",
             }
 
-    # ── Shared sub-dep across fastapi/lazy_depends ─────────
+    # ── Shared sub-dep across fastapi/lazy_depends ─────────────
 
     def test_shared_sub_dep_cached_across_depends_types(self):
         """A sub-dep used via both fastapi.Depends and lazy_depends.Depends
@@ -1832,8 +1846,8 @@ class TestCrossCompatibility:
             return f"lazy({s})"
 
         @app.get("/")
-        async def root(f=FastAPIDepends(via_fastapi), l=Depends(via_lazy)):
-            return {"f": f, "l": l}
+        async def root(f=FastAPIDepends(via_fastapi), ld=Depends(via_lazy)):
+            return {"f": f, "l": ld}
 
         with TestClient(app) as c:
             calls = 0
@@ -1844,7 +1858,7 @@ class TestCrossCompatibility:
             assert data["f"] == "fastapi(shared-1)"
             assert data["l"] == "lazy(shared-1)"
 
-    # ── dependency_overrides with mixed types ──────────────
+    # ── dependency_overrides with mixed types ──────────────────
 
     def test_override_works_with_mixed_depends(self):
         """dependency_overrides works regardless of which Depends was used."""
@@ -1871,11 +1885,9 @@ class TestCrossCompatibility:
         app.dependency_overrides.clear()
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 27. ConcurrentRouter
-# ═══════════════════════════════════════════════════════════
-
-from lazy_depends import ConcurrentRouter, CachedDepends
+# ════════════════════════════════════════════════════════
 
 
 class TestConcurrentRouter:
@@ -1937,9 +1949,9 @@ class TestConcurrentRouter:
             assert dt < 0.35, f"Took {dt:.2f}s — deps didn't run in parallel"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 28. CachedDepends
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestCachedDepends:
