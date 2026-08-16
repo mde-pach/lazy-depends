@@ -67,10 +67,35 @@ local_scheme = "no-local-version"
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# README snippets are hand-aligned for readability; the preview formatter
+# reflows Markdown code blocks, so keep documentation out of its scope.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.flake8-bugbear]
+# Dependency markers in default arguments are the whole point of the API;
+# they are evaluated once at import and never mutated (B008 false positive).
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+    "fastapi.params.Depends",
+    "lazy_depends.CachedDepends",
+    "lazy_depends.Depends",
+    "lazy_depends.LazyDepends",
+    "lazy_depends.StaticDepends",
+    "lazy_depends.depends.Depends",
+    "lazy_depends.depends.LazyDepends",
+]
 
 [tool.mypy]
 files = ["lazy_depends"]

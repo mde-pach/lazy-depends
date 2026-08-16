@@ -8,8 +8,8 @@ runs:
 
     - name: Lint with Ruff
       shell: bash
-      run: uv run ruff check --preview lazy_depends
+      run: uv run ruff check --preview .
 
     - name: Check formatting with Ruff
       shell: bash
-      run: uv run ruff format --preview --check lazy_depends
+      run: uv run ruff format --preview --check .

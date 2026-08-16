@@ -10,27 +10,25 @@ Run:  uvicorn example_traditional:app
 from contextlib import asynccontextmanager
 
 import aiosqlite
-from fastapi import FastAPI, Depends, HTTPException, Request
-from pydantic import BaseModel
-
 from domain import (
-    create_db,
-    fetch_user_by_token,
-    fetch_tasks_for_user,
-    fetch_team_activity,
-    fetch_permissions,
-    load_config,
-    insert_task,
     build_dashboard,
     build_focus,
-    compute_workload,
     check_permission,
+    compute_workload,
+    create_db,
+    fetch_permissions,
+    fetch_tasks_for_user,
+    fetch_team_activity,
+    fetch_user_by_token,
+    insert_task,
+    load_config,
 )
+from fastapi import Depends, FastAPI, HTTPException, Request
+from pydantic import BaseModel
 
-
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Lifespan — DB created at startup (best practice)
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 state: dict = {}
 
@@ -46,7 +44,7 @@ async def lifespan(app):
 app = FastAPI(title="Task Manager (traditional)", lifespan=lifespan)
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Dependency chain — resolved sequentially by FastAPI
 #
 # For /dashboard, FastAPI resolves depth-first:
@@ -58,7 +56,8 @@ app = FastAPI(title="Task Manager (traditional)", lifespan=lifespan)
 #
 # user is cached (Depends default), but tasks/perms/activity
 # still run sequentially: query + query + query
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 async def get_db() -> aiosqlite.Connection:
     return state["db"]
@@ -97,9 +96,10 @@ async def get_feed_context(db=Depends(get_db)):
     return user_names, task_titles
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Routes — same business logic as lazy version
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 @app.get("/dashboard")
 async def dashboard(
@@ -134,7 +134,9 @@ async def create_task(
 
     active = [t for t in tasks if t["status"] != "done"]
     if len(active) >= config["max_tasks_per_user"]:
-        raise HTTPException(400, f"Too many active tasks ({len(active)}/{config['max_tasks_per_user']})")
+        raise HTTPException(
+            400, f"Too many active tasks ({len(active)}/{config['max_tasks_per_user']})"
+        )
 
     if body.priority not in ("high", "medium", "low"):
         raise HTTPException(422, f"Invalid priority: {body.priority}")

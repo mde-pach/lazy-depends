@@ -14,32 +14,31 @@ Run:  uvicorn example_concurrent:app
 from contextlib import asynccontextmanager
 
 import aiosqlite
+
+# instead of: from fastapi import Depends
+# ────────────────────────────────────────────────────────────
+from domain import (
+    build_dashboard,
+    build_focus,
+    check_permission,
+    compute_workload,
+    create_db,
+    fetch_permissions,
+    fetch_tasks_for_user,
+    fetch_team_activity,
+    fetch_user_by_token,
+    insert_task,
+    load_config,
+)
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-# ── THE ONLY IMPORT CHANGE ──────────────────────────────────
-from lazy_depends import Depends, ConcurrentRoute
-# instead of: from fastapi import Depends
-# ─────────────────────────────────────────────────────────────
+# ── THE ONLY IMPORT CHANGE ──────────────────────────────────────
+from lazy_depends import ConcurrentRoute, Depends
 
-from domain import (
-    create_db,
-    fetch_user_by_token,
-    fetch_tasks_for_user,
-    fetch_team_activity,
-    fetch_permissions,
-    load_config,
-    insert_task,
-    build_dashboard,
-    build_focus,
-    compute_workload,
-    check_permission,
-)
-
-
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Lifespan — IDENTICAL to traditional
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 state: dict = {}
 
@@ -54,14 +53,15 @@ async def lifespan(app):
 
 app = FastAPI(title="Task Manager (concurrent)", lifespan=lifespan)
 
-# ── THE ONLY EXTRA LINE ─────────────────────────────────────
+# ── THE ONLY EXTRA LINE ────────────────────────────────────────
 app.router.route_class = ConcurrentRoute
-# ─────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Dependencies — IDENTICAL to traditional (copy-paste)
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 async def get_db() -> aiosqlite.Connection:
     return state["db"]
@@ -99,9 +99,10 @@ async def get_feed_context(db=Depends(get_db)):
     return user_names, task_titles
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Routes — IDENTICAL to traditional (copy-paste)
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 @app.get("/dashboard")
 async def dashboard(
@@ -136,7 +137,9 @@ async def create_task(
 
     active = [t for t in tasks if t["status"] != "done"]
     if len(active) >= config["max_tasks_per_user"]:
-        raise HTTPException(400, f"Too many active tasks ({len(active)}/{config['max_tasks_per_user']})")
+        raise HTTPException(
+            400, f"Too many active tasks ({len(active)}/{config['max_tasks_per_user']})"
+        )
 
     if body.priority not in ("high", "medium", "low"):
         raise HTTPException(422, f"Invalid priority: {body.priority}")

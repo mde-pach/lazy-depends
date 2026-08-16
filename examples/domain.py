@@ -9,8 +9,8 @@ All async services perform real aiosqlite queries — no asyncio.sleep.
 
 import asyncio
 import os
-import time
 import tempfile
+import time
 
 import aiosqlite
 
@@ -27,9 +27,10 @@ ROLE_PERMISSIONS = {
 }
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Database setup
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 async def create_db() -> aiosqlite.Connection:
     """Open (or create) the SQLite database, seed if empty."""
@@ -135,9 +136,10 @@ def reset_db():
         os.unlink(DB_PATH)
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Async services — real aiosqlite queries
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 async def _latency():
     """Simulate network round-trip latency for a DB query."""
@@ -148,9 +150,7 @@ async def _latency():
 async def fetch_user_by_token(db: aiosqlite.Connection, token: str) -> dict | None:
     """Validate token and load user from DB."""
     await _latency()
-    cursor = await db.execute(
-        "SELECT id, name, role, team FROM users WHERE token = ?", (token,)
-    )
+    cursor = await db.execute("SELECT id, name, role, team FROM users WHERE token = ?", (token,))
     row = await cursor.fetchone()
     return dict(row) if row else None
 
@@ -183,9 +183,7 @@ async def fetch_team_activity(db: aiosqlite.Connection, team: str) -> list[dict]
 async def fetch_permissions(db: aiosqlite.Connection, role: str) -> set[str]:
     """Load permissions for a role."""
     await _latency()
-    cursor = await db.execute(
-        "SELECT permission FROM permissions WHERE role = ?", (role,)
-    )
+    cursor = await db.execute("SELECT permission FROM permissions WHERE role = ?", (role,))
     rows = await cursor.fetchall()
     return {r["permission"] for r in rows}
 
@@ -205,7 +203,11 @@ async def load_config(db: aiosqlite.Connection) -> dict:
 
 
 async def insert_task(
-    db: aiosqlite.Connection, title: str, assignee_id: int, priority: str, estimate_hours: int,
+    db: aiosqlite.Connection,
+    title: str,
+    assignee_id: int,
+    priority: str,
+    estimate_hours: int,
 ) -> dict:
     """Insert a new task and return it."""
     await _latency()
@@ -226,9 +228,10 @@ async def insert_task(
     }
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # Sync business logic (unchanged — operates on dicts)
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
+
 
 def compute_workload(tasks: list[dict]) -> dict:
     by_status = {}
@@ -244,13 +247,17 @@ def compute_workload(tasks: list[dict]) -> dict:
         "by_status": {s: len(ts) for s, ts in by_status.items()},
         "total_estimate_hours": total_hours,
         "remaining_hours": remaining_hours,
-        "completion_pct": round((total_hours - remaining_hours) / total_hours * 100, 1) if total_hours else 0,
+        "completion_pct": round((total_hours - remaining_hours) / total_hours * 100, 1)
+        if total_hours
+        else 0,
         "high_priority_open": [t["title"] for t in high_priority_open],
         "is_overloaded": remaining_hours > 10,
     }
 
 
-def format_activity_feed(activity: list[dict], user_names: dict[int, str], task_titles: dict[int, str]) -> list[dict]:
+def format_activity_feed(
+    activity: list[dict], user_names: dict[int, str], task_titles: dict[int, str]
+) -> list[dict]:
     feed = []
     for a in sorted(activity, key=lambda x: x["ts"], reverse=True):
         ago = int(time.time() - a["ts"])
@@ -273,10 +280,13 @@ def format_activity_feed(activity: list[dict], user_names: dict[int, str], task_
 def prioritize_tasks(tasks: list[dict]) -> list[dict]:
     priority_order = {"high": 0, "medium": 1, "low": 2}
     status_order = {"in_progress": 0, "todo": 1, "done": 2}
-    return sorted(tasks, key=lambda t: (
-        status_order.get(t["status"], 9),
-        priority_order.get(t["priority"], 9),
-    ))
+    return sorted(
+        tasks,
+        key=lambda t: (
+            status_order.get(t["status"], 9),
+            priority_order.get(t["priority"], 9),
+        ),
+    )
 
 
 def check_permission(permissions: set[str], required: str) -> str | None:

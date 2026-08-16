@@ -11,7 +11,8 @@ Run: pytest tests/test_performance.py -v
 import asyncio
 import time
 
-from fastapi import FastAPI, Depends as FastAPIDepends
+from fastapi import Depends as FastAPIDepends
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from lazy_depends import ConcurrentRoute, Depends, LazyDepends
@@ -28,9 +29,9 @@ def _baseline_app() -> FastAPI:
     return FastAPI()
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 1. Concurrent vs Sequential — independent deps
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestConcurrentVsSequential:
@@ -81,9 +82,7 @@ class TestConcurrentVsSequential:
             dt = time.monotonic() - t0
             assert r.status_code == 200
             sequential = self.N_DEPS * self.SLEEP
-            assert dt >= sequential * 0.8, (
-                f"Sequential took {dt:.3f}s, expected ~{sequential:.2f}s"
-            )
+            assert dt >= sequential * 0.8, f"Sequential took {dt:.3f}s, expected ~{sequential:.2f}s"
 
     def test_concurrent_is_faster(self):
         """ConcurrentRoute resolves independent deps in parallel."""
@@ -105,14 +104,12 @@ class TestConcurrentVsSequential:
             dt = time.monotonic() - t0
             assert r.status_code == 200
             # Should be ~SLEEP, not ~N*SLEEP
-            assert dt < self.SLEEP * 2, (
-                f"Concurrent took {dt:.3f}s, expected ~{self.SLEEP:.2f}s"
-            )
+            assert dt < self.SLEEP * 2, f"Concurrent took {dt:.3f}s, expected ~{self.SLEEP:.2f}s"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 2. ASAP scheduling — independent branches
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestASAPScheduling:
@@ -173,9 +170,9 @@ class TestASAPScheduling:
             assert dt < 0.42, f"Took {dt:.3f}s — branches may be blocking each other"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 3. LazyDepends — background resolution saves time
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestLazyPerformance:
@@ -256,9 +253,9 @@ class TestLazyPerformance:
         )
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 4. Diamond dependency — shared sub-dep resolved once
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestDiamondPerformance:
@@ -303,9 +300,9 @@ class TestDiamondPerformance:
             assert dt < 0.4, f"Took {dt:.3f}s — shared dep may have resolved twice"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 5. Deep chain — no unnecessary overhead
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestDeepChainPerformance:
@@ -346,9 +343,9 @@ class TestDeepChainPerformance:
             assert dt < 0.35, f"Took {dt:.3f}s — excessive overhead for linear chain"
 
 
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 # 6. Mixed eager + lazy timing
-# ═══════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════
 
 
 class TestMixedPerformance:
@@ -382,6 +379,4 @@ class TestMixedPerformance:
             r = c.get("/")
             dt = time.monotonic() - t0
             assert r.json() == {"fast": "fast", "slow": "slow"}
-            assert dt < 0.45, (
-                f"Took {dt:.3f}s — eager+lazy should overlap at ~0.3s"
-            )
+            assert dt < 0.45, f"Took {dt:.3f}s — eager+lazy should overlap at ~0.3s"

@@ -17,18 +17,23 @@ import time
 from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
-
 HEADERS = {"Authorization": "Bearer token-alice"}
 HEADERS_BOB = {"Authorization": "Bearer token-bob"}
 
 SCENARIOS = [
-    ("GET",  "/dashboard", HEADERS,     None,                                                      "Dashboard (5 deps)"),
-    ("GET",  "/dashboard", HEADERS,     None,                                                      "Dashboard (5 deps, 2nd)"),
-    ("GET",  "/focus",     HEADERS,     None,                                                      "Focus (2 deps)"),
-    ("GET",  "/focus",     HEADERS_BOB, None,                                                      "Focus as Bob (2 deps)"),
-    ("POST", "/tasks",     HEADERS,     {"title": "Benchmark task", "priority": "high", "estimate_hours": 2}, "Create task (4 deps)"),
-    ("POST", "/tasks",     HEADERS_BOB, {"title": "Nope"},                                         "Create denied (4 deps)"),
-    ("GET",  "/dashboard", HEADERS,     None,                                                      "Dashboard after mutation"),
+    ("GET", "/dashboard", HEADERS, None, "Dashboard (5 deps)"),
+    ("GET", "/dashboard", HEADERS, None, "Dashboard (5 deps, 2nd)"),
+    ("GET", "/focus", HEADERS, None, "Focus (2 deps)"),
+    ("GET", "/focus", HEADERS_BOB, None, "Focus as Bob (2 deps)"),
+    (
+        "POST",
+        "/tasks",
+        HEADERS,
+        {"title": "Benchmark task", "priority": "high", "estimate_hours": 2},
+        "Create task (4 deps)",
+    ),
+    ("POST", "/tasks", HEADERS_BOB, {"title": "Nope"}, "Create denied (4 deps)"),
+    ("GET", "/dashboard", HEADERS, None, "Dashboard after mutation"),
 ]
 
 
@@ -47,9 +52,7 @@ async def run_scenarios(client: AsyncClient) -> list[dict]:
 
 async def run_burst(client: AsyncClient, n: int = 30) -> float:
     t0 = time.monotonic()
-    responses = await asyncio.gather(*[
-        client.get("/dashboard", headers=HEADERS) for _ in range(n)
-    ])
+    responses = await asyncio.gather(*[client.get("/dashboard", headers=HEADERS) for _ in range(n)])
     total = (time.monotonic() - t0) * 1000
     ok = sum(1 for r in responses if r.status_code == 200)
     return total, ok
@@ -57,6 +60,7 @@ async def run_burst(client: AsyncClient, n: int = 30) -> float:
 
 async def benchmark_app(module_name: str, label: str) -> dict:
     import domain
+
     domain.reset_db()
     importlib.reload(domain)
     mod = importlib.import_module(module_name)
@@ -90,10 +94,13 @@ def print_comparison(labels, all_results, runs):
         header += f" {label:>10s}"
     header += f"  {'Speedup':>10s}"
     print(header)
-    print(f"  {'─'*35}" + f" {'─'*10}" * n_apps + f"  {'─'*10}")
+    print(f"  {'─' * 35}" + f" {'─' * 10}" * n_apps + f"  {'─' * 10}")
 
     for i, (_, _, _, _, desc) in enumerate(SCENARIOS):
-        means = [statistics.mean(r["scenarios"][i]["time_ms"] for r in results) for results in all_results]
+        means = [
+            statistics.mean(r["scenarios"][i]["time_ms"] for r in results)
+            for results in all_results
+        ]
         line = f"  {desc:<35s}"
         for m in means:
             line += f" {m:9.2f}ms"
@@ -128,6 +135,7 @@ def print_comparison(labels, all_results, runs):
 
 async def run_suite(latency_ms: int, label: str, runs: int = 5):
     import domain
+
     domain.NETWORK_LATENCY_MS = latency_ms
 
     print(f"\n{'=' * 80}")
@@ -136,7 +144,7 @@ async def run_suite(latency_ms: int, label: str, runs: int = 5):
 
     apps = [
         ("example_traditional", "Traditional"),
-        ("example_concurrent",  "Concurrent"),
+        ("example_concurrent", "Concurrent"),
     ]
 
     all_results = [[] for _ in apps]
@@ -147,8 +155,7 @@ async def run_suite(latency_ms: int, label: str, runs: int = 5):
             result = await benchmark_app(mod_name, lbl)
             all_results[idx].append(result)
         totals = " ".join(
-            f"{lbl}={all_results[idx][-1]['total_ms']:.1f}ms"
-            for idx, (_, lbl) in enumerate(apps)
+            f"{lbl}={all_results[idx][-1]['total_ms']:.1f}ms" for idx, (_, lbl) in enumerate(apps)
         )
         print(f" {totals}")
 
