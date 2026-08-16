@@ -270,7 +270,7 @@ dev = [
 requires-dist = [
     { name = "aiosqlite", marker = "extra == 'dev'" },
     { name = "asgi-lifespan", marker = "extra == 'dev'" },
-    { name = "fastapi", specifier = ">=0.114.0,<0.140" },
+    { name = "fastapi", specifier = ">=0.114.0" },
     { name = "httpx", marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
