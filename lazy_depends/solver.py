@@ -29,23 +29,7 @@ from starlette.requests import Request as _Request
 from starlette.responses import Response as _Response
 from starlette.websockets import WebSocket
 
-# Version-adaptive imports: FastAPI >=0.133 moved/removed several helpers
-try:
-    from fastapi.dependencies.utils import (  # type: ignore[attr-defined]
-        is_async_gen_callable,
-        is_coroutine_callable,
-        is_gen_callable,
-        solve_generator,
-    )
-
-    _NEW_FASTAPI = False
-except ImportError:
-    # FastAPI >=0.133: these are now properties on Dependant,
-    # and solve_generator became _solve_generator with a different signature
-    from fastapi.dependencies.utils import _solve_generator  # type: ignore[attr-defined]
-
-    _NEW_FASTAPI = True
-
+from lazy_depends import _compat
 from lazy_depends.graph import _build_graph, _node_key, _topo_levels
 from lazy_depends.lazy import Lazy
 
@@ -59,6 +43,7 @@ async def _resolve_single_dep(
     background_tasks: StarletteBackgroundTasks | None,
     response: _Response,
     async_exit_stack: AsyncExitStack,
+    function_exit_stack: AsyncExitStack,
     embed_body_fields: bool,
 ) -> tuple[Any, list, StarletteBackgroundTasks | None]:
     """
@@ -110,29 +95,25 @@ async def _resolve_single_dep(
     if dep.response_param_name:
         values[dep.response_param_name] = response
     if dep.security_scopes_param_name:
-        _scopes = getattr(dep, "security_scopes", None) or getattr(dep, "security_scopes_value", [])
-        values[dep.security_scopes_param_name] = SecurityScopes(scopes=_scopes)
+        values[dep.security_scopes_param_name] = SecurityScopes(
+            scopes=_compat.dep_oauth_scopes(dep)
+        )
 
     # 5. Call the dependency (handle generators, async, sync)
     if errors:
         return None, errors, background_tasks
 
-    if _NEW_FASTAPI:
-        if dep.is_gen_callable or dep.is_async_gen_callable:
-            solved = await _solve_generator(
-                dependant=dep, stack=async_exit_stack, sub_values=values
-            )
-        elif dep.is_coroutine_callable:
-            solved = await call(**values)
-        else:
-            solved = await run_in_threadpool(call, **values)
+    if _compat.is_gen_callable(call, dep) or _compat.is_async_gen_callable(call, dep):
+        # scope="function" deps (FastAPI >=0.116) are torn down before the
+        # response is sent, so they go on the function-scoped stack.
+        stack = function_exit_stack if _compat.dep_scope(dep) == "function" else async_exit_stack
+        solved = await _compat.solve_generator(
+            dependant=dep, call=call, stack=stack, sub_values=values
+        )
+    elif _compat.is_coroutine_callable(call, dep):
+        solved = await call(**values)
     else:
-        if is_gen_callable(call) or is_async_gen_callable(call):
-            solved = await solve_generator(call=call, stack=async_exit_stack, sub_values=values)
-        elif is_coroutine_callable(call):
-            solved = await call(**values)
-        else:
-            solved = await run_in_threadpool(call, **values)
+        solved = await run_in_threadpool(call, **values)
 
     return solved, errors, background_tasks
 
@@ -147,6 +128,7 @@ async def solve_dependencies_concurrent(
     dependency_overrides_provider: Any = None,
     dependency_cache: dict | None = None,
     async_exit_stack: AsyncExitStack,
+    function_exit_stack: AsyncExitStack | None = None,
     embed_body_fields: bool,
     _lazy_dep_names: set[str] | None = None,
     _cached_graph: dict | None = None,
@@ -163,6 +145,9 @@ async def solve_dependencies_concurrent(
     """
     values: dict[str, Any] = {}
     errors: list = []
+
+    if function_exit_stack is None:
+        function_exit_stack = async_exit_stack
 
     if response is None:
         response = _Response()
@@ -262,6 +247,7 @@ async def solve_dependencies_concurrent(
                     background_tasks,
                     response,
                     async_exit_stack,
+                    function_exit_stack,
                     embed_body_fields,
                 )
                 if bt is not None:
@@ -297,7 +283,13 @@ async def solve_dependencies_concurrent(
                     if span.name == name:
                         span.is_lazy = True
         else:
-            values[sub_dep.name] = await node_tasks[key]
+            try:
+                values[sub_dep.name] = await node_tasks[key]
+            except RequestValidationError as exc:
+                # Mirror FastAPI: parameter errors raised while resolving a
+                # dependency are collected, not propagated, so the caller can
+                # attach the request body and endpoint context to the 422.
+                errors.extend(exc.errors())
 
     # Extract the endpoint's own non-dep params
     path_values, path_errors = request_params_to_args(dependant.path_params, request.path_params)
@@ -334,10 +326,9 @@ async def solve_dependencies_concurrent(
     if dependant.response_param_name:
         values[dependant.response_param_name] = response
     if dependant.security_scopes_param_name:
-        _scopes = getattr(dependant, "security_scopes", None) or getattr(
-            dependant, "security_scopes_value", []
+        values[dependant.security_scopes_param_name] = SecurityScopes(
+            scopes=_compat.dep_oauth_scopes(dependant)
         )
-        values[dependant.security_scopes_param_name] = SecurityScopes(scopes=_scopes)
 
     return SolvedDependency(
         values=values,

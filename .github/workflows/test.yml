@@ -24,6 +24,14 @@ jobs:
             packages: 'fastapi~=0.115.0'
           - python-version: '3.13'
             packages: 'fastapi~=0.128.0'
+          # the release that dropped Dependant.cache_key / the is_*_callable
+          # properties the compat layer used to rely on
+          - python-version: '3.13'
+            packages: 'fastapi~=0.140.0'
+          # unpinned: whatever FastAPI ships today, so a new release that
+          # moves an internal turns CI red instead of user apps
+          - python-version: '3.14'
+            packages: 'fastapi --upgrade'
     steps:
       - name: Checkout
         uses: actions/checkout@v7

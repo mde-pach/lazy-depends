@@ -11,18 +11,19 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from fastapi.dependencies.models import Dependant
-from fastapi.dependencies.utils import get_dependant
+
+from lazy_depends import _compat
 
 
 def _node_key(dep: Dependant) -> Any:
     """
     Unique key for a graph node.
 
-    use_cache=True  → shared by cache_key (same fn + scopes = same node)
+    use_cache=True  → shared by cache key (same fn + scopes = same node)
     use_cache=False → unique per call-site (id of the Dependant object)
     """
     if dep.use_cache:
-        return dep.cache_key
+        return _compat.dep_cache_key(dep)
     return id(dep)
 
 
@@ -45,7 +46,6 @@ def _build_graph(
     def walk(dep: Dependant) -> Any:
         """Process a Dependant node, returns its node_key."""
         dep.call = cast(Callable[..., Any], dep.call)
-        dep.cache_key = cast(tuple[Callable[..., Any], tuple[str]], dep.cache_key)  # type: ignore[assignment]
 
         # Apply dependency overrides (same logic as FastAPI)
         call = dep.call
@@ -55,15 +55,9 @@ def _build_graph(
                 dep.call, dep.call
             )
             if call is not dep.call:
-                # security_scopes kwarg was removed in FastAPI >=0.133
-                _kwargs: dict[str, Any] = {
-                    "path": dep.path,
-                    "call": call,
-                    "name": dep.name,
-                }
-                if hasattr(dep, "security_scopes"):
-                    _kwargs["security_scopes"] = dep.security_scopes
-                use_dep = get_dependant(**_kwargs)  # type: ignore[arg-type]
+                # The get_dependant() keyword set moved across releases —
+                # _compat builds whatever this FastAPI actually accepts.
+                use_dep = _compat.build_override_dependant(dep, call)
 
         key = _node_key(dep)
 

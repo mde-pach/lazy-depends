@@ -29,9 +29,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # 0.140 removed the internals lazy_depends hooks into (get_body_field,
-    # Dependant.is_coroutine_callable): capped until the solver is ported
-    "fastapi >=0.114.0, <0.140",
+    # The FastAPI internals lazy_depends hooks into are feature-detected per
+    # symbol in lazy_depends/_compat.py, so no upper bound is needed: a
+    # release that moves one of them degrades that capability instead of
+    # breaking the package. Tested against 0.114 -> 0.141.
+    "fastapi >=0.114.0",
 ]
 urls = { Repository = "https://github.com/mde-pach/lazy-depends", Issues = "https://github.com/mde-pach/lazy-depends/issues" }
 
